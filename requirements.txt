@@ -1,0 +1,4 @@
+watch-contract @ git+https://github.com/bnbnac-watch/watch-contract
+fastapi
+playwright
+uvicorn
