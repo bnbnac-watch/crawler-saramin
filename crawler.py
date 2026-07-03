@@ -1,6 +1,7 @@
 import logging
-from dataclasses import asdict
-from watch_contract import BaseCrawler, Item, CrawlerException
+
+from bs4 import BeautifulSoup
+from watch_contract import RenderCrawler, Item, CrawlerException
 
 logger = logging.getLogger(__name__)
 
@@ -17,33 +18,36 @@ _COMPANY_SELECTOR = ".corp_name a"
 _DEADLINE_SELECTOR = ".job_date .date"
 
 
-class SaraminCrawler(BaseCrawler):
-    async def crawl(self, page, keyword: str = "SLAM") -> list[Item]:
-        url = _SEARCH_URL.format(keyword=keyword)
-        try:
-            await page.goto(url, wait_until="networkidle", timeout=30000)
-            await page.wait_for_selector(_JOB_SELECTOR, timeout=10000)
+class SaraminCrawler(RenderCrawler):
+    def render_request(self, params: dict) -> dict:
+        keyword = params.get("keyword", "SLAM")
+        return {
+            "url": _SEARCH_URL.format(keyword=keyword),
+            "wait_for": _JOB_SELECTOR,
+        }
 
-            jobs = await page.query_selector_all(_JOB_SELECTOR)
+    def parse(self, html: str, params: dict) -> list[Item]:
+        try:
+            soup = BeautifulSoup(html, "html.parser")
             items = []
-            for job in jobs:
+            for job in soup.select(_JOB_SELECTOR):
                 try:
-                    title_el = await job.query_selector(_TITLE_SELECTOR)
+                    title_el = job.select_one(_TITLE_SELECTOR)
                     if not title_el:
                         continue
 
-                    title = (await title_el.inner_text()).strip()
-                    href = await title_el.get_attribute("href")
+                    title = title_el.get_text(strip=True)
+                    href = title_el.get("href")
                     if not href:
                         continue
                     if not href.startswith("http"):
                         href = f"{_BASE_URL}{href}"
 
-                    company_el = await job.query_selector(_COMPANY_SELECTOR)
-                    company = (await company_el.inner_text()).strip() if company_el else ""
+                    company_el = job.select_one(_COMPANY_SELECTOR)
+                    company = company_el.get_text(strip=True) if company_el else ""
 
-                    deadline_el = await job.query_selector(_DEADLINE_SELECTOR)
-                    deadline = (await deadline_el.inner_text()).strip() if deadline_el else ""
+                    deadline_el = job.select_one(_DEADLINE_SELECTOR)
+                    deadline = deadline_el.get_text(strip=True) if deadline_el else ""
 
                     items.append(Item(
                         id=href,
@@ -57,5 +61,5 @@ class SaraminCrawler(BaseCrawler):
             logger.info("파싱 완료: %d개", len(items))
             return items
         except Exception as e:
-            logger.error("crawl 예외: %s", e)
+            logger.error("parse 예외: %s", e)
             raise CrawlerException(str(e)) from e
