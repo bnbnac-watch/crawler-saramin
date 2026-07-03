@@ -1,5 +1,4 @@
 import logging
-import os
 from dataclasses import asdict
 from watch_contract import BaseCrawler, Item, CrawlerException
 
@@ -19,11 +18,8 @@ _DEADLINE_SELECTOR = ".job_date .date"
 
 
 class SaraminCrawler(BaseCrawler):
-    def __init__(self):
-        self._keyword = os.getenv("SEARCH_KEYWORD", "SLAM")
-
-    async def crawl(self, page) -> list[Item]:
-        url = _SEARCH_URL.format(keyword=self._keyword)
+    async def crawl(self, page, keyword: str = "SLAM") -> list[Item]:
+        url = _SEARCH_URL.format(keyword=keyword)
         try:
             await page.goto(url, wait_until="networkidle", timeout=30000)
             await page.wait_for_selector(_JOB_SELECTOR, timeout=10000)

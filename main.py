@@ -26,7 +26,9 @@ async def crawl(request):
             context = await browser.new_context()
             page = await context.new_page()
             try:
-                items = await _crawler.crawl(page)
+                body = await request.json() if request.can_read_body else {}
+                keyword = body.get("keyword", "SLAM")
+                items = await _crawler.crawl(page, keyword)
                 logger.info("crawl 완료: %d개", len(items))
                 return web.json_response([asdict(item) for item in items])
             finally:
