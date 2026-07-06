@@ -1,3 +1,4 @@
 watch-contract @ git+https://github.com/bnbnac-watch/watch-contract
 aiohttp
+httpx
 beautifulsoup4

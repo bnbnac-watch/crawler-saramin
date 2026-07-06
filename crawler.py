@@ -1,7 +1,8 @@
 import logging
 
+import httpx
 from bs4 import BeautifulSoup
-from watch_contract import RenderCrawler, Item, CrawlerException
+from watch_contract import BaseCrawler, Item, CrawlerException
 
 logger = logging.getLogger(__name__)
 
@@ -10,23 +11,34 @@ _SEARCH_URL = (
     "https://www.saramin.co.kr/zf_user/search/recruit"
     "?searchType=search&searchword={keyword}&recruitPage=1"
 )
+# saramin은 Playwright 기본 headless 지문을 차단(connection reset/hang)하지만
+# 검색 결과가 SSR로 내려오므로 JS 렌더링 없이 직접 GET으로 가져온다.
+_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
 
-# 아래 셀렉터는 실제 페이지 구조 확인 후 수정 필요
-_JOB_SELECTOR = "li.item_recruit"
+_JOB_SELECTOR = "div.item_recruit"
 _TITLE_SELECTOR = "h2.job_tit a"
 _COMPANY_SELECTOR = ".corp_name a"
 _DEADLINE_SELECTOR = ".job_date .date"
 
 
-class SaraminCrawler(RenderCrawler):
-    def render_request(self, params: dict) -> dict:
+class SaraminCrawler(BaseCrawler):
+    async def crawl(self, params: dict) -> list[Item]:
         keyword = params.get("keyword", "SLAM")
-        return {
-            "url": _SEARCH_URL.format(keyword=keyword),
-            "wait_for": _JOB_SELECTOR,
-        }
+        url = _SEARCH_URL.format(keyword=keyword)
+        try:
+            async with httpx.AsyncClient(
+                timeout=30, headers={"User-Agent": _USER_AGENT}
+            ) as client:
+                res = await client.get(url)
+                res.raise_for_status()
+                html = res.text
+        except Exception as e:
+            logger.error("crawl 예외: %s", e)
+            raise CrawlerException(str(e)) from e
 
-    def parse(self, html: str, params: dict) -> list[Item]:
         try:
             soup = BeautifulSoup(html, "html.parser")
             items = []
