@@ -1,4 +1,5 @@
 import logging
+from urllib.parse import urlparse, parse_qs
 
 import httpx
 from bs4 import BeautifulSoup
@@ -61,8 +62,12 @@ class SaraminCrawler(BaseCrawler):
                     deadline_el = job.select_one(_DEADLINE_SELECTOR)
                     deadline = deadline_el.get_text(strip=True) if deadline_el else ""
 
+                    # href의 search_uuid는 검색 세션마다 랜덤 발급되어 매 크롤링마다 바뀌므로
+                    # 중복 판정용 id로 부적합 — rec_idx(공고 고유번호)를 대신 사용
+                    rec_idx = parse_qs(urlparse(href).query).get("rec_idx", [None])[0]
+
                     items.append(Item(
-                        id=href,
+                        id=rec_idx or href,
                         title=title,
                         url=href,
                         data={"company": company, "deadline": deadline},
